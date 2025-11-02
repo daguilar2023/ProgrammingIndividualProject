@@ -1,6 +1,8 @@
 package blackboard.users;
 
-public abstract class User {
+import blackboard.util.Persistable;
+
+public abstract class User implements Persistable {
 
     public enum UserRole {
         ADMIN,
