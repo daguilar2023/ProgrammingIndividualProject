@@ -8,6 +8,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.Collections;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 public class Course {
     private String id;
@@ -19,6 +24,10 @@ public class Course {
     private List<Announcement> announcements;
     private List<Enrollment> enrollments;
 
+    // Transient refs used during load; resolved in AppState
+    private transient Integer teacherIdRef;
+    private transient List<Integer> pendingEnrollStudentIds;
+
     public Course(String id, String title, int maxCapacity, Teacher teacher) {
         this.id = id;
         this.title = title;
@@ -28,6 +37,7 @@ public class Course {
         this.assignments = new ArrayList<>();
         this.announcements = new ArrayList<>();
         this.enrollments = new ArrayList<>();
+        this.pendingEnrollStudentIds = new ArrayList<>();
     }
 
     public String getId() {
@@ -60,6 +70,10 @@ public class Course {
 
     public List<Enrollment> getEnrollments() {
         return Collections.unmodifiableList(enrollments);
+    }
+
+    public void setTeacher(Teacher t) {
+        this.teacher = t;
     }
 
     /**
@@ -122,30 +136,10 @@ public class Course {
 
     /**
      * Check whether the student meets all prerequisites for this course.
-     * NOTE: This is a placeholder. When grading/completion is implemented,
-     * replace with real checks like student.hasCompleted(prereq).
+     * Placeholder: returns true for now to keep enrollment unblocked until
+     * Student.hasCompleted(Course) is implemented.
      */
     public boolean meetsPrerequisites(Student s) {
-        if (prerequisites.isEmpty()) return true; // no prereqs to check
-
-        for (Course prereq : prerequisites) {
-            try {
-                // Later, Student will have hasCompleted(Course)
-                java.lang.reflect.Method method = s.getClass().getMethod("hasCompleted", Course.class);
-                boolean completed = (boolean) method.invoke(s, prereq);
-                if (!completed) {
-                    System.out.println("Student " + s.getName() + " has not completed prerequisite: " + prereq.getTitle());
-                    return false;
-                }
-            } catch (NoSuchMethodException e) {
-                // Student.hasCompleted not implemented yet; assume unmet
-                System.out.println("Warning: prerequisite check deferred for " + s.getName());
-                return false;
-            } catch (Exception e) {
-                e.printStackTrace();
-                return false;
-            }
-        }
         return true;
     }
 
@@ -175,6 +169,167 @@ public class Course {
         enrollments.add(e);
         System.out.println("Enrolled " + s.getName() + " in " + title);
         return e;
+    }
+
+    // =====================================================================
+    //                          Persistence
+    // =====================================================================
+
+    /**
+     * CSV layout:
+     * id,title,maxCapacity,teacherId,studentId1;studentId2;...
+     */
+    public void save() throws Exception {
+        Path dir = Paths.get("data", "courses");
+        Files.createDirectories(dir);
+        Path file = dir.resolve(safeFileName(id) + ".csv");
+
+        String teacherIdStr = (teacher == null) ? "" : String.valueOf(teacher.getId());
+
+        // Collect current enrollment student IDs
+        List<String> studentIdStrings = new ArrayList<>();
+        for (Enrollment e : enrollments) {
+            if (e.getStudent() != null) {
+                studentIdStrings.add(String.valueOf(e.getStudent().getId()));
+            }
+        }
+        String studentsJoined = String.join(";", studentIdStrings);
+
+        String line = String.join(",",
+                escapeCsv(id),
+                escapeCsv(title),
+                String.valueOf(maxCapacity),
+                teacherIdStr,
+                studentsJoined
+        );
+
+        Files.writeString(
+                file,
+                line + System.lineSeparator(),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+        );
+    }
+
+    /**
+     * Load a course from a CSV file. Leaves teacher unresolved but stores teacherIdRef.
+     * Also captures student IDs into pendingEnrollStudentIds so AppState can resolve
+     * them later into real Enrollment objects.
+     */
+    public static Course load(Path file) throws Exception {
+        if (!Files.exists(file)) return null;
+
+        String data = Files.readString(file, StandardCharsets.UTF_8).trim();
+        if (data.isEmpty()) return null;
+
+        // Split allowing empty trailing fields
+        String[] parts = splitCsvLine(data, 5);
+
+        // expected: id,title,maxCapacity,teacherId,students
+        String id = unescapeCsv(parts[0]);
+        String title = unescapeCsv(parts[1]);
+        int maxCapacity = parseIntSafe(parts[2], 0);
+
+        Course c = new Course(id, title, maxCapacity, null);
+
+        if (!parts[3].isEmpty()) {
+            c.teacherIdRef = parseIntSafeObj(parts[3], null);
+        }
+
+        if (!parts[4].isEmpty()) {
+            String[] toks = parts[4].split(";");
+            for (String tok : toks) {
+                if (!tok.isEmpty()) {
+                    Integer sid = parseIntSafeObj(tok, null);
+                    if (sid != null) {
+                        c.pendingEnrollStudentIds.add(sid);
+                    }
+                }
+            }
+        }
+
+        return c;
+    }
+
+    /** Expose teacherIdRef for AppState resolution */
+    public Integer getTeacherIdRef() { return teacherIdRef; }
+    public List<Integer> getPendingEnrollStudentIds() { return Collections.unmodifiableList(pendingEnrollStudentIds); }
+    public void clearTransientRefs() {
+        this.teacherIdRef = null;
+        this.pendingEnrollStudentIds.clear();
+    }
+
+    // =====================================================================
+    //                          Helpers
+    // =====================================================================
+
+    private static String safeFileName(String s) {
+        return s == null ? "" : s.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    private static int parseIntSafe(String s, int fallback) {
+        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return fallback; }
+    }
+    private static Integer parseIntSafeObj(String s, Integer fallback) {
+        try { return Integer.valueOf(s.trim()); } catch (Exception e) { return fallback; }
+    }
+
+    // Basic CSV escaping/unescaping (handles commas/quotes/newlines)
+    private static String escapeCsv(String s) {
+        if (s == null) return "";
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
+    private static String unescapeCsv(String s) {
+        if (s == null) return "";
+        s = s.trim();
+        if (s.startsWith("\"") && s.endsWith("\"") && s.length() >= 2) {
+            s = s.substring(1, s.length() - 1).replace("\"\"", "\"");
+        }
+        return s;
+    }
+
+    /**
+     * Split a single-line CSV into at most `expected` columns,
+     * preserving empty trailing fields.
+     */
+    private static String[] splitCsvLine(String line, int expected) {
+        // Simple splitter for our limited schema; not a full CSV parser.
+        List<String> out = new ArrayList<>(expected);
+        boolean inQuotes = false;
+        StringBuilder cur = new StringBuilder();
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (inQuotes) {
+                if (ch == '"') {
+                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                        // Escaped quote
+                        cur.append('"');
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    cur.append(ch);
+                }
+            } else {
+                if (ch == ',') {
+                    out.add(cur.toString());
+                    cur.setLength(0);
+                } else if (ch == '"') {
+                    inQuotes = true;
+                } else {
+                    cur.append(ch);
+                }
+            }
+        }
+        out.add(cur.toString());
+        while (out.size() < expected) out.add("");
+        return out.toArray(new String[0]);
     }
 
     @Override

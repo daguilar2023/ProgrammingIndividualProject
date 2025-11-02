@@ -12,27 +12,52 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+
 public class Student extends User {
-    private final String studentId;
 
     // Base-models: Student should fix its role to STUDENT
-    public Student(int id, String name, String username, String password, String studentId) {
+    public Student(int id, String name, String username, String password) {
         super(id, name, username, password, UserRole.STUDENT);
-        this.studentId = studentId;
     }
 
-    public String getStudentId() {
-        return studentId;
-    }
 
     @Override
     public void save() throws Exception {
-        // TODO(feature/persistence-stub): persist student record to storage
+        Path dir = Paths.get("data", "students");
+        Files.createDirectories(dir);
+        Path file = dir.resolve(getId() + ".csv");
+        String line = String.join(",",
+                String.valueOf(getId()),
+                getName() == null ? "" : getName(),
+                getUsername() == null ? "" : getUsername(),
+                getPassword() == null ? "" : getPassword()
+        );
+        Files.writeString(file, line + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     @Override
     public void load() throws Exception {
-        // TODO(feature/persistence-stub): load student record from storage
+        Path file = Paths.get("data", "students", getId() + ".csv");
+        if (!Files.exists(file)) {
+            System.out.println("No persisted record for student id=" + getId());
+            return;
+        }
+        String data = Files.readString(file).trim();
+        if (data.isEmpty()) return;
+        String[] parts = data.split(",", -1);
+        if (parts.length >= 4) {
+            boolean ok = String.valueOf(getId()).equals(parts[0])
+                    && (getName() == null ? "" : getName()).equals(parts[1])
+                    && (getUsername() == null ? "" : getUsername()).equals(parts[2])
+                    && (getPassword() == null ? "" : getPassword()).equals(parts[3]);
+            if (!ok) {
+                System.out.println("Warning: persisted Student differs from in-memory instance (id=" + getId() + ")");
+            }
+        }
     }
 
     /**
@@ -73,7 +98,6 @@ public class Student extends User {
                 "id=" + getId() +
                 ", name='" + getName() + '\'' +
                 ", username='" + getUsername() + '\'' +
-                ", studentId='" + studentId + '\'' +
                 '}';
     }
 }

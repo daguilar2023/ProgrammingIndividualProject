@@ -18,17 +18,12 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 
 public class Teacher extends User {
-    private final String employeeId;
 
     // Base-models: fix role to TEACHER
-    public Teacher(int id, String name, String username, String password, String employeeId) {
+    public Teacher(int id, String name, String username, String password) {
         super(id, name, username, password, UserRole.TEACHER);
-        this.employeeId = employeeId;
     }
 
-    public String getEmployeeId() {
-        return employeeId;
-    }
 
     @Override
     public void save() throws Exception {
@@ -39,8 +34,7 @@ public class Teacher extends User {
                 String.valueOf(getId()),
                 getName() == null ? "" : getName(),
                 getUsername() == null ? "" : getUsername(),
-                getPassword() == null ? "" : getPassword(),
-                employeeId == null ? "" : employeeId
+                getPassword() == null ? "" : getPassword()
         );
         Files.writeString(file, line + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
     }
@@ -55,13 +49,11 @@ public class Teacher extends User {
         String data = Files.readString(file).trim();
         if (data.isEmpty()) return;
         String[] parts = data.split(",", -1);
-        if (parts.length >= 5) {
-            // Compare persisted data with current instance; warn if mismatched
+        if (parts.length >= 4) {
             boolean ok = String.valueOf(getId()).equals(parts[0])
                     && (getName() == null ? "" : getName()).equals(parts[1])
                     && (getUsername() == null ? "" : getUsername()).equals(parts[2])
-                    && (getPassword() == null ? "" : getPassword()).equals(parts[3])
-                    && (employeeId == null ? "" : employeeId).equals(parts[4]);
+                    && (getPassword() == null ? "" : getPassword()).equals(parts[3]);
             if (!ok) {
                 System.out.println("Warning: persisted Teacher differs from in-memory instance (id=" + getId() + ")");
             }
@@ -122,7 +114,6 @@ public class Teacher extends User {
                 "id=" + getId() +
                 ", name='" + getName() + '\'' +
                 ", username='" + getUsername() + '\'' +
-                ", employeeId='" + employeeId + '\'' +
                 '}';
     }
 }

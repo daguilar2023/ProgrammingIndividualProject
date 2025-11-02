@@ -81,17 +81,8 @@ public class Admin extends User {
             System.out.println("Invalid course or teacher.");
             return;
         }
-
-        try {
-            java.lang.reflect.Field teacherField = course.getClass().getDeclaredField("teacher");
-            teacherField.setAccessible(true);
-            teacherField.set(course, t);
-            System.out.println("Teacher " + t.getName() + " assigned to course " + course.getTitle());
-        } catch (NoSuchFieldException e) {
-            System.out.println("Error: Course class does not have a 'teacher' field.");
-        } catch (IllegalAccessException e) {
-            System.out.println("Error assigning teacher to course: " + e.getMessage());
-        }
+        course.setTeacher(t);
+        System.out.println("Teacher " + t.getName() + " assigned to course " + course.getTitle());
     }
 
     @Override
