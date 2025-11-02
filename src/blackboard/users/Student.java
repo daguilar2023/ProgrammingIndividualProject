@@ -2,10 +2,15 @@ package blackboard.users;
 
 import blackboard.courses.Course;
 import blackboard.courses.Assignment;
+import blackboard.courses.Enrollment;
+import blackboard.courses.Submission;
+import blackboard.util.AppState;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class Student extends User {
     private final String studentId;
@@ -34,16 +39,32 @@ public class Student extends User {
      * View the list of courses the student is enrolled in.
      */
     public List<Course> viewEnrollments() {
-        // TODO(feature/enrollment-rules): fetch enrollments for this student and map to courses
-        return Collections.emptyList();
+        List<Course> enrolledCourses = new ArrayList<>();
+        for (Course c : AppState.getCourses()) {
+            for (Enrollment e : c.getEnrollments()) {
+                if (e.getStudent() == this) {
+                    enrolledCourses.add(c);
+                    break;
+                }
+            }
+        }
+        return Collections.unmodifiableList(enrolledCourses);
     }
 
     /**
      * View grades for assignments in a given course.
      */
     public Map<Assignment, Double> viewGrades(Course course) {
-        // TODO(feature/grading): compute or aggregate assignment grades for this student in the given course
-        return Collections.emptyMap();
+        Map<Assignment, Double> grades = new HashMap<>();
+        if (course == null) return grades;
+
+        for (Assignment a : course.getAssignments()) {
+            Submission s = a.getSubmission(this);
+            if (s != null && s.getScore() != null) {
+                grades.put(a, s.getScore());
+            }
+        }
+        return Collections.unmodifiableMap(grades);
     }
 
     @Override

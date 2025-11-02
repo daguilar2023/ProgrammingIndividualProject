@@ -2,6 +2,7 @@ package blackboard.courses;
 
 import blackboard.users.Student;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class Enrollment {
     private Student student;
@@ -41,7 +42,24 @@ public class Enrollment {
      * @return the computed final grade.
      */
     public double computeFinal() {
-        // TODO(feature/grading): implement logic to compute final grade based on assignments and scores
+        List<Assignment> assignments = course.getAssignments();
+        double totalScore = 0.0;
+        int gradedCount = 0;
+
+        for (Assignment assignment : assignments) {
+            Submission submission = assignment.getSubmission(student);
+            if (submission != null && submission.isGraded()) {
+                totalScore += submission.getScore();
+                gradedCount++;
+            }
+        }
+
+        if (gradedCount > 0) {
+            finalGrade = totalScore / gradedCount;
+        } else {
+            finalGrade = 0.0;
+        }
+
         return finalGrade;
     }
 
