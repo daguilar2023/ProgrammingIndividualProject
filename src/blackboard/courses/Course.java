@@ -150,6 +150,15 @@ public class Course implements CsvPersistable {
         Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
     }
 
+    public boolean hasAssignment(String assignmentId) {
+        if (assignmentId == null) return false;
+        String needle = assignmentId.trim();
+        for (Assignment a : getAssignments()) {
+            if (a.getId().equals(needle)) return true;
+        }
+        return false;
+    }
+
     // small helpers (local)
     private static String safe(String s){ return s.replaceAll("[^a-zA-Z0-9._-]","_"); }
     private static int parseInt(String s,int fb){ try{return Integer.parseInt(s.trim());}catch(Exception e){return fb;}}

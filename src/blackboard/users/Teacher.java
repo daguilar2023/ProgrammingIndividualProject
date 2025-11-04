@@ -27,9 +27,23 @@ public class Teacher extends User implements CsvPersistable {
         try { c.saveAssignments(); } catch (Exception ignore) {}
     }
 
-    public void recordGrade(Course c, String assignmentId, int studentId, int grade) {
-        if (c==null || assignmentId==null) return;
-        c.setGrade(assignmentId, studentId, grade);
-        try { c.saveGrades(); } catch (Exception ignore) {}
+    public void recordGrade(Course c, String assignmentId, int studentId, int grade) throws Exception {
+        if (c == null) { System.out.println("❌ No course."); return; }
+
+        // Enforce: can only grade existing assignments
+        if (!c.hasAssignment(assignmentId)) {
+            System.out.println("❌ Assignment '" + assignmentId + "' does not exist in " + c.getTitle() + ".");
+            return;
+        }
+
+        // If you already added 0..100 validation in Main, you can keep this as safety:
+        if (grade < 0 || grade > 100) {
+            System.out.println("❌ Grade must be between 0 and 100.");
+            return;
+        }
+
+        // Now record grade using your existing course-grade API
+        c.setGrade(assignmentId, studentId, grade); // or whatever your method is named
+        c.saveGrades(); // persist (use your existing method name)
     }
 }

@@ -62,6 +62,8 @@ public class Main {
         }
     }
 
+
+
     private static void initSampleData() throws Exception {
         // Start clean, then make sure data/ exists
         AppState.resetAllData();
@@ -339,13 +341,15 @@ public class Main {
         }
     }
 
+
+
     static void teacherMenu(Teacher t){
         while (true){
             System.out.println("\n[TEACHER] 1) My Courses 2) New Assignment 3) Grade 4) View Assignments 5) View Submissions 6) Back");
             String ch = in.nextLine().trim();
             if ("1".equals(ch)) listCourses(t);
             else if ("2".equals(ch)) {
-                Course c = pickCourse();
+                Course c = pickMyCourse(t);
                 if (c == null) { System.out.println("❌ No course selected."); break; }
                 System.out.print("Assignment id: ");
                 String aid = in.nextLine().trim();
@@ -356,11 +360,15 @@ public class Main {
                 t.createAssignment(c, aid, atitle);
                 System.out.println("✅ Assignment created.");
             } else if ("3".equals(ch)) {
-                Course c = pickCourse();
+                Course c = pickMyCourse(t);
                 if (c == null) { System.out.println("❌ No course selected."); break; }
                 System.out.print("Assignment id: ");
                 String aid = in.nextLine().trim();
                 if (aid.isEmpty()) { System.out.println("❌ Assignment id cannot be empty."); break; }
+                if (!c.hasAssignment(aid)) {
+                    System.out.println("❌ No such assignment in this course.");
+                    break;
+                }
                 try {
                     System.out.print("Student id (number): ");
                     int sid = Integer.parseInt(in.nextLine().trim());
@@ -380,7 +388,7 @@ public class Main {
 
             }
             else if ("4".equals(ch)) {
-                Course c = pickCourse();
+                Course c = pickMyCourse(t);
                 if (c == null) { System.out.println("❌ No course selected."); break; }
                 System.out.println("Assignments for " + c.getTitle() + ":");
                 for (Assignment a : c.getAssignments()) {
@@ -388,11 +396,15 @@ public class Main {
                 }
             }
             else if ("5".equals(ch)) {
-                Course c = pickCourse();
+                Course c = pickMyCourse(t);
                 if (c == null) { System.out.println("❌ No course selected."); break; }
                 System.out.print("Assignment id: ");
                 String aid = in.nextLine().trim();
                 if (aid.isEmpty()) { System.out.println("❌ Assignment id cannot be empty."); break; }
+                if (!c.hasAssignment(aid)) {
+                    System.out.println("❌ No such assignment in this course.");
+                    break;
+                }
 
                 System.out.println("Submissions for " + c.getTitle() + " / " + aid + ":");
                 for (Student s2 : AppState.students) {
@@ -432,6 +444,10 @@ public class Main {
                 System.out.print("Assignment id to submit: ");
                 String aid = in.nextLine().trim();
                 if (aid.isEmpty()) { System.out.println("❌ Assignment id cannot be empty."); break; }
+                if (!c.hasAssignment(aid)) {
+                    System.out.println("❌ No such assignment in this course.");
+                    break;
+                }
                 c.markSubmitted(aid, s.getId());
                 try { c.saveSubmissions(); } catch (Exception ignore) {}
                 System.out.println("✅ Submitted " + aid + " for " + c.getTitle());
@@ -473,6 +489,34 @@ public class Main {
         for (Student s : AppState.students) {
             System.out.println(s.getId() + "  " + s.getName() + " (" + s.getUsername() + ")");
         }
+
     }
+    // pick only from THIS teacher's courses
+    static Course pickMyCourse(Teacher t) {
+        boolean any = false;
+        for (Course c : AppState.courses) {
+            if (c.getTeacher() != null && c.getTeacher().getId() == t.getId()) {
+                System.out.println(c.getId() + ": " + c.getTitle());
+                any = true;
+            }
+        }
+        if (!any) {
+            System.out.println("(none assigned yet)");
+            return null;
+        }
+
+        System.out.print("courseId > ");
+        String id = in.nextLine().trim();
+        for (Course c : AppState.courses) {
+            if (c.getId().equals(id)
+                    && c.getTeacher() != null
+                    && c.getTeacher().getId() == t.getId()) {
+                return c;
+            }
+        }
+        System.out.println("Not found (or not your course).");
+        return null;
+    }
+
 
 }
